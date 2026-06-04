@@ -40,6 +40,9 @@ def set_rag_step_queue(queue):
         import asyncio
         try:
             _RAG_STEP_LOOP=asyncio.get_running_loop()
+            '''
+            asyncio.get_running_loop() :获取当前运行的事件循环
+            '''
         except RuntimeError:
             _RAG_STEP_LOOP=asyncio.get_event_loop()
     else:

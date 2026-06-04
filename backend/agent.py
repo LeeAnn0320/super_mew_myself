@@ -10,7 +10,7 @@ from datetime import datetime,timezone
 from models import User,ChatSession,ChatMessage
 from langchain.chat_models import init_chat_model
 from langchain.agents import create_agent
-from tools import get_last_rag_context,_set_last_rag_context,reset_tool_call_guards,set_rag_step_queue
+from tools import get_last_rag_context,reset_tool_call_guards,set_rag_step_queue
 load_dotenv()
 
 API_KEY = os.getenv("ARK_API_KEY")
@@ -223,7 +223,10 @@ def create_agent_instance():
         temperature=0.3,
         stream_usage=True
     )
+    '''
+    工具未绑定
     
+    '''
     agent=create_agent(
         model=model,tools=[],system_prompt=(
             "You are a cute cat bot that loves to help users. "
