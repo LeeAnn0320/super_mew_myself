@@ -84,7 +84,7 @@ class DocumentLoader:
                     **base_doc,
                     "text":level_2_text,
                     "chunk_id":level_2_id,
-                    "parent_chunk_id":"",
+                    "parent_chunk_id":level_1_id,
                     "roo_chunk_id":level_2_id,
                     "chunk_level":2,
                     "chunk_idx":page_global_chunk_idx
@@ -103,7 +103,7 @@ class DocumentLoader:
                         **base_doc,
                         "text":level_3_text,
                         "chunk_id":level_3_id,
-                        "parent_chunk_id":"",
+                        "parent_chunk_id":level_2_id,
                         "roo_chunk_id":level_3_id,
                         "chunk_level":3,
                         "chunk_idx":page_global_chunk_idx
