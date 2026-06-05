@@ -248,7 +248,7 @@ def generate_hypothetical_document(query:str)->str:
         return ""
 
 
-def step_back_expand(query:str)->str:
+def step_back_expand(query:str)->Dict[str,Any]:
     step_back_question=_generate_step_back_question(query)
     step_back_answer=_answer_step_back_question(step_back_question)
 
