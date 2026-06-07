@@ -86,7 +86,7 @@ class UploadJobManager:
             return deepcopy(job) #深拷贝 所有对象都复 包括嵌套对象
         
 
-    def get_step(self,job_id:str)->Dict | None:
+    def get_job(self,job_id:str)->Dict | None:
         with self._lock:
             job=self._jobs.get(job_id)
             return deepcopy(job) if job else None
