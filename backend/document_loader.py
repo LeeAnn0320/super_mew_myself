@@ -152,6 +152,7 @@ class DocumentLoader:
                 )
                 page_global_chunk_idx+=len(page_chunks)
                 documents.extend(page_chunks)
+            return documents
         except Exception as e:
             raise Exception(f"处理文档失败：{str(e)}")
         
