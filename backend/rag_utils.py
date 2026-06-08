@@ -43,7 +43,8 @@ def _get_rerank_endpoint()->str:
     strip()去掉首尾空白
     rstrip()去掉右侧空白
     '''
-    return host if host.endswith("/v1/rerank") else f"{host}/v1/rerank"
+    # return host if host.endswith("/v1/rerank") else f"{host}/v1/rerank"
+    return host 
 
 
 def _merge_to_parent_level(docs:List[Dict],threshold:int=2)->Tuple[List[Dict],int]:
@@ -169,7 +170,7 @@ def _rerank_documents(query:str,docs:List[Dict],top_k:int)->Tuple[List[Dict],Dic
 
         for item in items:
             idx=item.get("index")
-            if isinstance(idx,int)and 0<=len(docs_with_rank):
+            if isinstance(idx,int)and 0<=idx<len(docs_with_rank):
                 doc=dict(docs_with_rank[idx])#创建原字典的拷贝
                 score=item.get("relevance_score")
                 if score is not None:

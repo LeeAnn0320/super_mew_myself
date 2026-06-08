@@ -4,3 +4,5 @@ __pycache__/
 *.pyo
 .vscode/
 test.py
+volumes/
+data/

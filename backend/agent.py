@@ -10,7 +10,7 @@ from datetime import datetime,timezone
 from models import User,ChatSession,ChatMessage
 from langchain.chat_models import init_chat_model
 from langchain.agents import create_agent
-from tools import get_last_rag_context,reset_tool_call_guards,set_rag_step_queue
+from tools import get_last_rag_context,reset_tool_call_guards,set_rag_step_queue,get_current_weather,search_knowledge_base
 load_dotenv()
 
 API_KEY = os.getenv("ARK_API_KEY")
@@ -55,7 +55,7 @@ class ConversationStorage:
             if not user:
                 return
             session=(
-                db.query(ChatSession).filter(ChatSession.user_id==user_id,ChatSession.session_id==session_id)
+                db.query(ChatSession).filter(ChatSession.user_id==user.id,ChatSession.session_id==session_id)
                 .first()
             )
             if not session:
@@ -64,7 +64,7 @@ class ConversationStorage:
                 db.flush()
             else:
                 session.metadata_json=metadata or {}
-            db.query(ChatMessage).filter(ChatMessage.session_ref_id==session_id).delete(synchronize_session=False)
+            db.query(ChatMessage).filter(ChatMessage.session_ref_id==session.id).delete(synchronize_session=False)
             
             serialized=[]
             now=datetime.utcnow()
@@ -134,7 +134,7 @@ class ConversationStorage:
             
             sessions=(
                 db.query(ChatSession).filter(
-                    ChatSession.user_id==user_id
+                    ChatSession.user_id==user.id
                 ).order_by(ChatSession.updated_at.desc()).all()
             )
 
@@ -146,7 +146,7 @@ class ConversationStorage:
                     {
                         "session_id":s.session_id,
                         "updated_at":s.updated_at.isoformat(),
-                        "messsage_count":count
+                        "message_count":count
                     }
                 )
             cache.set_json(self._session_cache_key(user_id),result)
@@ -168,7 +168,7 @@ class ConversationStorage:
                 return []
             
             session=(
-                db.query(ChatSession).filter(ChatSession.user_id==user_id,ChatSession.session_id==session_id).first()
+                db.query(ChatSession).filter(ChatSession.user_id==user.id,ChatSession.session_id==session_id).first()
             )
             if not session:
                 return []
@@ -199,7 +199,7 @@ class ConversationStorage:
                 return False
             
             session=(
-                db.query(ChatSession).filter(ChatSession.user_id==user_id,ChatSession.session_id==session_id).first()
+                db.query(ChatSession).filter(ChatSession.user_id==user.id,ChatSession.session_id==session_id).first()
             )
 
             if not session:
@@ -228,7 +228,7 @@ def create_agent_instance():
     
     '''
     agent=create_agent(
-        model=model,tools=[],system_prompt=(
+        model=model,tools=[get_current_weather, search_knowledge_base],system_prompt=(
             "You are a cute cat bot that loves to help users. "
             "When responding, you may use tools to assist. "
             "Use search_knowledge_base when users ask document/knowledge questions. "
@@ -244,7 +244,7 @@ def create_agent_instance():
     return agent,model
 
 
-agent,model=create_agent()
+agent,model=create_agent_instance()
 
 storage=ConversationStorage()
 
@@ -274,7 +274,7 @@ def chat_with_agent(user_text:str,user_id:str="default_user",session_id:str="def
         summary=summarize_old_messages(model,messages[:40])
         messages=[
             SystemMessage(content=f"之前的对话摘要:\n{summary}")
-        ]+messages[:40]
+        ]+messages[40:]
     messages.append(HumanMessage(content=user_text))
     result=agent.invoke(
         {"messages":messages},
@@ -377,7 +377,7 @@ async def chat_with_agent_stream(user_text:str,user_id:str="default_user",sessio
             event=await output_queue.get()
             if event is None:
                 break
-            yield f"data:{json.dumps(event)}\n\n"
+            yield f"data: {json.dumps(event)}\n\n"
 
     except GeneratorExit:
         # 客户端断开连接（AbortController）时，FastAPI 会向此生成器抛出 GeneratorExit
@@ -398,13 +398,13 @@ async def chat_with_agent_stream(user_text:str,user_id:str="default_user",sessio
 
     rag_context=get_last_rag_context(clear=True)
 
-    rag_trace=rag_context.get("rag_trace")if rag_trace else None
+    rag_trace=rag_context.get("rag_trace")if rag_context else None
 
     #发送trace信息
 
     if rag_trace:
-        yield f"data:{json.dumps({'type':'trace','rag_trace':rag_trace})}\n\n"
-    yield "data:[Done]\n\n"
+        yield f"data: {json.dumps({'type':'trace','rag_trace':rag_trace})}\n\n"
+    yield "data: [Done]\n\n"
 
 
     #保存对话

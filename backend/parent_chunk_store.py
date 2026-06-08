@@ -88,7 +88,7 @@ class ParentChunkStore:
         return upserted
     def get_document_by_ids(self,chunk_ids:List[str])->List[Dict]:
         if not chunk_ids:
-            return
+            return []
         ordered_results={}
         missing_ids=[]
 

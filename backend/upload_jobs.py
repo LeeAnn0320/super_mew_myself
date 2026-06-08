@@ -161,7 +161,7 @@ class UploadJobManager:
             step=self._find_step(job,step_key)
             if step:
                 step["status"]="failed"
-                step["messages"]=error
+                step["message"]=error
             
             job["status"]="failed"
             job["current_step"]=step_key

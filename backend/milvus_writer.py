@@ -44,5 +44,5 @@ class MilvusWriter:
             self.milvus_manager.insert(insert_data)
             #每个批次写入后更新进度，前端据此展示 向量化入库
             if progress_callback:
-                processed=min(i,batch_size,total)
+                processed=min(i+batch_size,total)
                 progress_callback(processed,total)

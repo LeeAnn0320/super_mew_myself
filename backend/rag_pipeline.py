@@ -12,7 +12,7 @@ load_dotenv()
 API_KEY = os.getenv("ARK_API_KEY")
 MODEL = os.getenv("MODEL")
 BASE_URL = os.getenv("BASE_URL")
-GRADE_MODEL = os.getenv("GRADE_MODEL", "gpt-4.1")
+GRADE_MODEL = os.getenv("MODEL", "gpt-4.1")
 
 
 _grader_model=None
@@ -52,7 +52,8 @@ GRADE_PROMPT = (
     "Here is the retrieved document: \n\n {context} \n\n"
     "Here is the user question: {question} \n"
     "If the document contains keyword(s) or semantic meaning related to the user question, grade it as relevant. \n"
-    "Give a binary score 'yes' or 'no' score to indicate whether the document is relevant to the question."
+    "Give a binary_score 'yes' or 'no' score to indicate whether the document is relevant to the question.\n"
+    "Output your answer in JSON format."
 )
 
 
@@ -161,10 +162,12 @@ def grade_documents_node(state:RAGState)->RAGState:
     question=state["question"]
     context=state.get("context","")
     prompt=GRADE_PROMPT.format(question=question,context=context)
+    # print(f"评分提示词:{prompt}")
     response=grader.with_structured_output(GradeDocuments).invoke(
         [{"role":"user","content":prompt}]
     )
     score=(response.binary_score or "").strip().lower()
+    # print(f"评分回复：{response}")
     route="generate_answer" if score =="yes" else "rewrite_question"
     if route=="generate_answer":
         emit_rag_step("✔️","文档相关相关性评估通过",f"评分:{score}")
@@ -188,11 +191,11 @@ def rewrite_question_node(state:RAGState)->RAGState:
     strategy="step_back"
     if router:
         prompt=(
-            "请根据用户问题选择最合适的查询扩展策略，仅输出策略名。\n"
+            "请根据用户问题选择最合适的查询扩展策略，以 JSON 格式输出策略名。\n"
             "- step_back：包含具体名称、日期、代码等细节，需要先理解通用概念的问题。\n"
             "- hyde：模糊、概念性、需要解释或定义的问题。\n"
             "- complex：多步骤、需要分解或综合多种信息的复杂问题。\n"
-            f"用户问题：{question}"   
+            f"用户问题：{question}"
         )
 
         try:
@@ -230,7 +233,7 @@ def rewrite_question_node(state:RAGState)->RAGState:
         "expansion_query":expanded_query,
         "step_back_question":step_back_question,
         "step_back_answer":step_back_answer,
-        "hybothetical_doc":hypothetical_doc,
+        "hypothetical_doc":hypothetical_doc,
         "rag_trace":rag_trace
     }
 
@@ -370,7 +373,7 @@ def build_rag_graph():
     graph.add_node("retrieve_expanded",retrieve_expanded)
 
     #设置入口节点
-    graph.set_entry_point("retrieve_initila")
+    graph.set_entry_point("retrieve_initial")
     
     #设置边
     graph.add_edge("retrieve_initial","grade_documents")

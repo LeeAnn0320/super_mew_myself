@@ -20,7 +20,7 @@ T=TypeVar("T")
 
 class MilvusManager:
     def __init__(self):
-        self.host=os.getenv("MILVUS_HOST","locahost")
+        self.host=os.getenv("MILVUS_HOST","localhost")
         self.port=os.getenv("MILVUS_PORT","19530")
         self.collection_name=os.getenv("MILVUS_COLLECTION","embedding_collection")
         self.url=f"http://{self.host}:{self.port}"
@@ -58,7 +58,7 @@ class MilvusManager:
 
         self._close_client(client)
     
-    def _run_with_resconnect(self,operation:Callable[[MilvusClient],T])->T:
+    def _run_with_reconnect(self,operation:Callable[[MilvusClient],T])->T:
         '''
          Callable[[参数类型, ...], 返回类型]
         
@@ -77,17 +77,27 @@ class MilvusManager:
         if dense_dim is None:
             dense_dim=int(os.getenv("DENSE_EMBEDDING_DIM","1024"))
         def _init(client:MilvusClient)->None:
-            if not client.has_collection(self.collection_name):
+            exists = client.has_collection(self.collection_name)
+
+            # 如果 collection 已存在但缺少索引，则删掉重建（索引是 load 的前提）
+            if exists:
+                indexes = client.list_indexes(self.collection_name)
+                required_fields = {"dense_embedding", "sparse_embedding"}
+                if not required_fields.issubset(set(indexes)):
+                    client.drop_collection(self.collection_name)
+                    exists = False
+
+            if not exists:
                 schema=client.create_schema(auto_id=True,enable_dynamic_field=True)
                 # 主键
                 schema.add_field("id", DataType.INT64, is_primary=True, auto_id=True)
-                
+
                 # 密集向量（来自 embedding 模型）
                 schema.add_field("dense_embedding", DataType.FLOAT_VECTOR, dim=dense_dim)
-                
+
                 # 稀疏向量（来自 BM25）
                 schema.add_field("sparse_embedding", DataType.SPARSE_FLOAT_VECTOR)
-                
+
                 # 文本和元数据字段
                 schema.add_field("text", DataType.VARCHAR, max_length=2000)
                 schema.add_field("filename", DataType.VARCHAR, max_length=255)
@@ -125,11 +135,13 @@ class MilvusManager:
                 )
 
                 client.create_collection(collection_name=self.collection_name,schema=schema,index_params=index_params)
-        self._run_with_resconnect(_init)
+            # 确保 collection 已加载到内存
+            client.load_collection(self.collection_name)
+        self._run_with_reconnect(_init)
 
     def insert(self,data:List[Dict]):
         '''插入数据到Milvus'''
-        return self._run_with_resconnect(lambda client:client.insert(self.collection_name,data))
+        return self._run_with_reconnect(lambda client:client.insert(self.collection_name,data))
     
     def query(
             self,
@@ -141,10 +153,10 @@ class MilvusManager:
         '''
         查询数据  注意是查询 表示搜索
         '''
-        return self._run_with_resconnect(
+        return self._run_with_reconnect(
             lambda client:client.query(
                 collection_name=self.collection_name,
-                filer=filter_expr,
+                filter=filter_expr,
                 output_fields=output_fields or ["filename","file_type"],
                 limit=min(limit,QUERY_MAX_LIMIT),
                 offset=offset
@@ -229,7 +241,7 @@ class MilvusManager:
 
         #使用RRF排序算法
         reranker=RRFRanker(k=rrf_k)
-        results=self._run_with_resconnect(
+        results=self._run_with_reconnect(
             lambda client:client.hybrid_search(
                 collection_name=self.collection_name,
                 reqs=[dense_search,sparse_search],
@@ -303,7 +315,7 @@ class MilvusManager:
         return formatted_results
     
     def delete(self,filter_expr:str):
-        return self._run_with_resconnect(
+        return self._run_with_reconnect(
             lambda client:client.delete(
                 collection_name=self.collection_name,filter=filter_expr
             )
@@ -311,7 +323,7 @@ class MilvusManager:
     
     def has_collection(self)->bool:
         '''检查集合是否存在'''
-        return self._run_with_resconnect(lambda client:client.has_collection(self.collection_name))
+        return self._run_with_reconnect(lambda client:client.has_collection(self.collection_name))
     
     
     def drop_collection(self):
@@ -319,4 +331,4 @@ class MilvusManager:
             if client.has_collection(self.collection_name):
                 client.drop_collection(self.collection_name)
 
-        self._run_with_resconnect(_drop)
+        self._run_with_reconnect(_drop)

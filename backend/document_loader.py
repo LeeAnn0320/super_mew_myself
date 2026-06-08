@@ -35,8 +35,8 @@ class DocumentLoader:
         )
 
     @staticmethod
-    def _build_chunk_id(filaname:str,page_number:int,level:int,index:int)->str:
-        return f"{filaname}::p{page_number}::l{level}::{index}"
+    def _build_chunk_id(filename:str,page_number:int,level:int,index:int)->str:
+        return f"{filename}::p{page_number}::l{level}::{index}"
     
 
     def _split_page_to_three_levels(self,text:str,base_doc:Dict,page_global_chunk_idx:int)->List[Dict]:
@@ -66,7 +66,7 @@ class DocumentLoader:
                 "text":level_1_text,
                 "chunk_id":level_1_id,
                 "parent_chunk_id":"",
-                "roo_chunk_id":level_1_id,
+                "root_chunk_id":level_1_id,
                 "chunk_level":1,
                 "chunk_idx":page_global_chunk_idx
             }
@@ -85,11 +85,11 @@ class DocumentLoader:
                     "text":level_2_text,
                     "chunk_id":level_2_id,
                     "parent_chunk_id":level_1_id,
-                    "roo_chunk_id":level_2_id,
+                    "root_chunk_id":level_2_id,
                     "chunk_level":2,
                     "chunk_idx":page_global_chunk_idx
                 }
-                page_global_chunk_idx+=2
+                page_global_chunk_idx+=1
                 root_chunks.append(level_2_chunk)
                 
                 level_3_docs=self._splitter_level_3.create_documents([level_2_text],[base_doc])
@@ -104,11 +104,11 @@ class DocumentLoader:
                         "text":level_3_text,
                         "chunk_id":level_3_id,
                         "parent_chunk_id":level_2_id,
-                        "roo_chunk_id":level_3_id,
+                        "root_chunk_id":level_3_id,
                         "chunk_level":3,
                         "chunk_idx":page_global_chunk_idx
                     }
-                    page_global_chunk_idx+=3
+                    page_global_chunk_idx+=1
                     root_chunks.append(level_3_chunk)
         return root_chunks 
 
@@ -119,10 +119,10 @@ class DocumentLoader:
             doc_type="PDF"
             loader=PyPDFLoader(file_path)
 
-        elif file_lower.endswith([".docx",".doc"]):
+        elif file_lower.endswith((".docx",".doc")):
             doc_type="Word"
             loader=Docx2txtLoader(file_path)
-        elif file_lower.endswith([".xlsx","xls"]):
+        elif file_lower.endswith((".xlsx","xls")):
             doc_type="Excel"
             loader=UnstructuredExcelLoader(file_path)
 
@@ -140,7 +140,7 @@ class DocumentLoader:
 
             for doc in raw_docs:
                 base_doc={
-                    "file_name":filename,
+                    "filename":filename,
                     "file_path":file_path,
                     "file_type":doc_type,
                     "page_number":doc.metadata.get("page",0)

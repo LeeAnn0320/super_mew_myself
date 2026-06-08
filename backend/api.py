@@ -63,12 +63,12 @@ def _remove_bm25_stats_for_filename(filename:str)->None:
 
 
 #用户注册
-@router.post("auth/register",response_model=AuthResponse)
+@router.post("/auth/register",response_model=AuthResponse)
 async def register(request:RegisterRequest,db:Session=Depends(get_db)):
     username=(request.username or "").strip()
     password=(request.password or "").strip()
-    if not username or password:
-        raise HTTPException(status_code=409,detail="用户名已存在")
+    if not username or not password:
+        raise HTTPException(status_code=409,detail="用户名或密码不能为空")
 
     exists=db.query(User).filter(User.username==username).first()
 
@@ -243,7 +243,7 @@ def _process_upload_job(job_id:str,file_path:str,filename:str)->None:
                                        message="正在清理同名旧文档")
         milvus_manager.init_collection()
 
-        delete_expr=f'filename=="{filename}'
+        delete_expr=f'filename=="{filename}"'
         try:
             _remove_bm25_stats_for_filename(filename=filename)
         except:
@@ -313,7 +313,7 @@ def _process_upload_job(job_id:str,file_path:str,filename:str)->None:
             )
 
         milvus_writer.writer_document(documents=leaf_docs,progress_callback=_on_vector_progress)
-        upload_job_manager.complete_step(job_id=job_id,step_key="vectore_store",message=f"向量化入库完成:{total_leaf}个叶子分块")
+        upload_job_manager.complete_step(job_id=job_id,step_key="vector_store",message=f"向量化入库完成:{total_leaf}个叶子分块")
         upload_job_manager.complete_job(job_id=job_id,message=f"成功上传并处理{filename}")
     except Exception as e:
         upload_job_manager.fail_job(job_id=job_id,step_key=failed_step,error=str(e))
@@ -339,9 +339,9 @@ def _process_delete_job(job_id:str,filename:str)->None:
 
 
         failed_step="bm25"
-        delete_job_manager.update_step(job_id=job_id,step_key="bm25",percent=20,status="正在同步BM25统计")
+        delete_job_manager.update_step(job_id=job_id,step_key="bm25",status="running",percent=20,message="正在同步BM25统计")
         _remove_bm25_stats_for_filename(filename=filename)
-        delete_job_manager.complete_step(job_id=job_id,step_key="prepare",message="正在通同步BM25统计")
+        delete_job_manager.complete_step(job_id=job_id,step_key="bm25",message="BM25统计已同步")
 
 
 
@@ -462,22 +462,22 @@ async def delete_document_async(
         filename=filename,
         steps=DELETE_STEPS,
         current_step="prepare",
-        messages="等待删除",
-        completion_step="parent_step"
+        message="等待删除",
+        completion_step="parent_store"
     )
     delete_job_manager.update_step(job["job_id"],"prepare",1,"running","删除任务已提交")
     background_tasks.add_task(_process_delete_job,job["job_id"],filename)
     return DocumentDeleteStartResponse(
         job_id=job["job_id"],
         filename=filename,
-        messge=f"正在删除{filename}"
+        message=f"正在删除{filename}"
     )
 
 @router.get("/documents/delete/jobs/{job_id}",response_model=DocumentDeleteJobResponse)
 async def get_delete_job(job_id:str,_:User=Depends(require_admin)):
     job=delete_job_manager.get_job(job_id=job_id)
     if not job:
-        raise HTTPException(status_code=4004,detail="删除不存在或过期")
+        raise HTTPException(status_code=404,detail="删除不存在或过期")
     
     return DocumentDeleteJobResponse(
         **job
@@ -543,7 +543,7 @@ async def upload_document(file:UploadFile=File(...),_:User=Depends(require_admin
         return DocumentUploadResponse(
             filename=filename,
             chunks_processed=len(leaf_docs),
-            messages=(
+            message=(
                 f"成功上传并处理{filename}，叶子分块{len(leaf_docs)}个"
                 f"父级分块{len(parent_docs)}个（存入PostgreSQL）"
             )
